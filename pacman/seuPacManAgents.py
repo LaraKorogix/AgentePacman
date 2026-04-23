@@ -11,6 +11,13 @@
 # Student side autograding was added by Brad Miller, Nick Hay, and
 # Pieter Abbeel (pabbeel@cs.berkeley.edu).
 
+from util import manhattanDistance
+from game import Directions
+import random, util
+
+from game import Agent
+from pacman import GameState
+from multiAgents import MultiAgentSearchAgent
 
 from util import manhattanDistance
 from game import Directions
@@ -22,103 +29,111 @@ from multiAgents import MultiAgentSearchAgent
 
 
 class MinimaxAgent(MultiAgentSearchAgent):
+
     def getAction(self, gameState: GameState):
-        """Seu código vem aqui
-        Adicione o código para minimax
         """
+        Implementação do algoritmo Minimax.
+        O Pac-Man busca maximizar a pontuação enquanto os fantasmas tentam minimizá-la.
+        """
+
         def minimax(agentIndex=0, depth=0, state=gameState):
-            # verifica se jogo acabou, se sim retorna self.evaluationFunction(state) ou betterEvaluationFunction do estado
-            # isWin() e isLose() indicam fim de jogo; depth == self.depth indica que atingimos o limite de busca
+
+            # Para quando o jogo acaba ou atinge a profundidade máxima
             if state.isWin() or state.isLose() or depth == self.depth:
                 return self.evaluationFunction(state)
 
-            # calcula próximo agente
-            # os agentes são indexados: 0 = Pac-Man, 1..N-1 = fantasmas
-            # quando chegamos no último fantasma, o próximo agente volta a ser o Pac-Man (índice 0)
             numAgents = state.getNumAgents()
+
+            # Define próximo agente
             nextAgent = 0 if agentIndex == numAgents - 1 else agentIndex + 1
 
-            # calcula próxima profundidade (apenas e agentIndex == self.index a profundidade aumenta)
-            # uma "rodada" completa acontece quando todos os agentes jogaram uma vez
-            # então só incrementamos a profundidade quando o último fantasma terminar sua jogada
+            # Aumenta profundidade apenas quando todos jogaram
             nextDepth = depth + 1 if agentIndex == numAgents - 1 else depth
 
+            # Turno do Pac-Man (MAX)
             if agentIndex == 0:
-                # turno do Pac-Man: nó MAX — queremos o maior score possível
-                bestScore = -float('inf')  # inicia com o pior valor possível para maximização
-                bestAction = None          # vai armazenar a ação que leva ao melhor score
+                bestScore = -float('inf')
+                bestAction = None
 
-                # para cada ação possível em state.getLegalActions(agentIndex)
-                # getLegalActions retorna todas as direções válidas que o agente pode seguir
                 for action in state.getLegalActions(agentIndex):
-                    # calcula o próximo estado com state.generateSuccessor(agentIndex, action)
-                    # generateSuccessor simula o que acontece no jogo após o agente executar a ação
-                    successor = state.generateSuccessor(agentIndex, action)
 
-                    # calcula o score chamando minimax recursivamente
-                    # chamamos minimax para o próximo agente e próxima profundidade nesse estado sucessor
+                    # Remove ação STOP para evitar ficar parado
+                    if action == Directions.STOP:
+                        continue
+
+                    successor = state.generateSuccessor(agentIndex, action)
                     score = minimax(nextAgent, nextDepth, successor)
 
-                    # se for um passo de maximização e o score for maior que o anterior, selecione ele
-                    # atualizamos o melhor score e guardamos a ação correspondente
+                    # Escolhe melhor ação
                     if score > bestScore:
                         bestScore = score
                         bestAction = action
 
-                # retorne a melhor ação
-                # na chamada raiz (depth == 0) retornamos a ação para o jogo executar
-                # nas chamadas recursivas internas retornamos apenas o score numérico
+                    # Desempate aleatório
+                    elif score == bestScore:
+                        bestAction = random.choice([bestAction, action])
+
                 return bestAction if depth == 0 else bestScore
 
+            # Turno dos fantasmas (MIN)
             else:
-                # turno dos fantasmas: nó MIN — querem o menor score possível para o Pac-Man
-                bestScore = float('inf')  # inicia com o pior valor possível para minimização
+                bestScore = float('inf')
 
-                # para cada ação possível em state.getLegalActions(agentIndex)
-                # getLegalActions retorna todas as direções válidas que o fantasma pode seguir
                 for action in state.getLegalActions(agentIndex):
-                    # calcula o próximo estado com state.generateSuccessor(agentIndex, action)
-                    # generateSuccessor simula o que acontece no jogo após o fantasma executar a ação
-                    successor = state.generateSuccessor(agentIndex, action)
 
-                    # calcula o score chamando minimax recursivamente
-                    # chamamos minimax para o próximo agente e próxima profundidade nesse estado sucessor
+                    # Também removo STOP dos fantasmas
+                    if action == Directions.STOP:
+                        continue
+
+                    successor = state.generateSuccessor(agentIndex, action)
                     score = minimax(nextAgent, nextDepth, successor)
 
-                    # se for um passo de minimização e o score for menor que o anterior, selecione ele
-                    # o fantasma quer piorar ao máximo a situação do Pac-Man
                     if score < bestScore:
                         bestScore = score
 
-                # retorne a melhor ação
-                # fantasmas não precisam retornar a ação, apenas o score mínimo encontrado
                 return bestScore
 
         return minimax()
 
 
 def betterEvaluationFunction(currentGameState: GameState):
+    """
+    Função heurística que avalia o estado do jogo.
+    Considera comida, fantasmas e movimentação do Pac-Man.
+    """
+
     pos = currentGameState.getPacmanPosition()
     food = currentGameState.getFood().asList()
     ghostStates = currentGameState.getGhostStates()
 
-    # Calcula a distância de Manhattan para a comida mais próxima
+    score = currentGameState.getScore()
+
+    # Penaliza ficar parado
+    if currentGameState.getPacmanState().getDirection() == Directions.STOP:
+        score -= 5
+
+    # Distância até comida
     foodDistances = [manhattanDistance(pos, f) for f in food]
-    if len(foodDistances) > 0:
+    if foodDistances:
         minFoodDistance = min(foodDistances)
-    else:
-        minFoodDistance = 0
+        score -= 1.5 / (minFoodDistance + 1)
 
-    # Distância para o fantasma mais próximo
-    ghostDistances = [manhattanDistance(pos, ghost.getPosition()) for ghost in ghostStates]
-    minGhostDistance = min(ghostDistances)
+    # Menos comida é melhor
+    score -= 4 * len(food)
 
-    # Aumenta a pontuação se o fantasma estiver assustado, mas penaliza se estiver muito perto
-    scaredTimes = [ghostState.scaredTimer for ghostState in ghostStates]
-    if min(scaredTimes) > 0:
-        minGhostDistance = 0  # Ignora fantasmas assustados
+    # Análise dos fantasmas
+    for ghost in ghostStates:
+        ghostDistance = manhattanDistance(pos, ghost.getPosition())
 
-    return currentGameState.getScore() - (1.5 / (minFoodDistance + 1)) + (2 / (minGhostDistance + 1))
+        if ghost.scaredTimer > 0:
+            score += 2 / (ghostDistance + 1)
+        else:
+            score -= 3 / (ghostDistance + 1)
 
-# Abbreviation
+            if ghostDistance < 2:
+                score -= 10
+
+    return score
+
+
 better = betterEvaluationFunction
