@@ -26,20 +26,73 @@ class MinimaxAgent(MultiAgentSearchAgent):
         """Seu código vem aqui
         Adicione o código para minimax
         """
-
         def minimax(agentIndex=0, depth=0, state=gameState):
             # verifica se jogo acabou, se sim retorna self.evaluationFunction(state) ou betterEvaluationFunction do estado
+            # isWin() e isLose() indicam fim de jogo; depth == self.depth indica que atingimos o limite de busca
+            if state.isWin() or state.isLose() or depth == self.depth:
+                return self.evaluationFunction(state)
 
             # calcula próximo agente
-            # calcula próxima profundidade (apenas e agentIndex == self.index a profundidade aumenta)
+            # os agentes são indexados: 0 = Pac-Man, 1..N-1 = fantasmas
+            # quando chegamos no último fantasma, o próximo agente volta a ser o Pac-Man (índice 0)
+            numAgents = state.getNumAgents()
+            nextAgent = 0 if agentIndex == numAgents - 1 else agentIndex + 1
 
-            # para cada ação possível em state.getLegalActions(agentIndex)
-            # calcula o próximo estado com state.generateSuccessor(agentIndex, action)
-            # calcula o score chamando minimax recursivamemnte
-            # se for um passo de maximização e o score for maior que o anterior, selecione ele
-            # se for um passo de minimização e o score for menor que o anterior, selecione ele
-            # retorne a melhor ação
-            pass
+            # calcula próxima profundidade (apenas e agentIndex == self.index a profundidade aumenta)
+            # uma "rodada" completa acontece quando todos os agentes jogaram uma vez
+            # então só incrementamos a profundidade quando o último fantasma terminar sua jogada
+            nextDepth = depth + 1 if agentIndex == numAgents - 1 else depth
+
+            if agentIndex == 0:
+                # turno do Pac-Man: nó MAX — queremos o maior score possível
+                bestScore = -float('inf')  # inicia com o pior valor possível para maximização
+                bestAction = None          # vai armazenar a ação que leva ao melhor score
+
+                # para cada ação possível em state.getLegalActions(agentIndex)
+                # getLegalActions retorna todas as direções válidas que o agente pode seguir
+                for action in state.getLegalActions(agentIndex):
+                    # calcula o próximo estado com state.generateSuccessor(agentIndex, action)
+                    # generateSuccessor simula o que acontece no jogo após o agente executar a ação
+                    successor = state.generateSuccessor(agentIndex, action)
+
+                    # calcula o score chamando minimax recursivamente
+                    # chamamos minimax para o próximo agente e próxima profundidade nesse estado sucessor
+                    score = minimax(nextAgent, nextDepth, successor)
+
+                    # se for um passo de maximização e o score for maior que o anterior, selecione ele
+                    # atualizamos o melhor score e guardamos a ação correspondente
+                    if score > bestScore:
+                        bestScore = score
+                        bestAction = action
+
+                # retorne a melhor ação
+                # na chamada raiz (depth == 0) retornamos a ação para o jogo executar
+                # nas chamadas recursivas internas retornamos apenas o score numérico
+                return bestAction if depth == 0 else bestScore
+
+            else:
+                # turno dos fantasmas: nó MIN — querem o menor score possível para o Pac-Man
+                bestScore = float('inf')  # inicia com o pior valor possível para minimização
+
+                # para cada ação possível em state.getLegalActions(agentIndex)
+                # getLegalActions retorna todas as direções válidas que o fantasma pode seguir
+                for action in state.getLegalActions(agentIndex):
+                    # calcula o próximo estado com state.generateSuccessor(agentIndex, action)
+                    # generateSuccessor simula o que acontece no jogo após o fantasma executar a ação
+                    successor = state.generateSuccessor(agentIndex, action)
+
+                    # calcula o score chamando minimax recursivamente
+                    # chamamos minimax para o próximo agente e próxima profundidade nesse estado sucessor
+                    score = minimax(nextAgent, nextDepth, successor)
+
+                    # se for um passo de minimização e o score for menor que o anterior, selecione ele
+                    # o fantasma quer piorar ao máximo a situação do Pac-Man
+                    if score < bestScore:
+                        bestScore = score
+
+                # retorne a melhor ação
+                # fantasmas não precisam retornar a ação, apenas o score mínimo encontrado
+                return bestScore
 
         return minimax()
 
